@@ -11,7 +11,7 @@ import (
 
 func main() {
 	n := maelstrom.NewNode()
-
+	var store []string
 	var slice []int // Declaration of an integer slice
 
 	// Register a handler for the "echo" message that responds with an "echo_ok".
@@ -21,15 +21,28 @@ func main() {
 		if err := json.Unmarshal(msg.Body, &body); err != nil {
 			return err
 		}
+		flag := false
 		// Update the message type.
-		body["type"] = "broadcast_ok"
 		value := int(body["message"].(float64))
-		os.Stderr.WriteString(fmt.Sprintln(value))
+		for i := 0; i < len(slice); i++ {
+			if (slice[i] == value) {
+				flag = true
+			}
+		}
+		if (flag) {
+			return nil
+		}
+		for i := 0; i < len(store); i++ {
+			n.Send(store[i], body)
+		}
+		// os.Stderr.WriteString(fmt.Sprintln(value))
 		{
 			slice = append(slice, value)
-			os.Stderr.WriteString("ok")
-			os.Stderr.WriteString(fmt.Sprintf("%v", slice))
+			// os.Stderr.WriteString("ok")
+			// os.Stderr.WriteString(fmt.Sprintf("%v", slice))
 		}
+		body["type"] = "broadcast_ok"
+
 		delete(body, "message")
 		// os.Stderr.WriteString("Counnt of ID" + n.ID())
 
@@ -56,14 +69,29 @@ func main() {
 	n.Handle("topology", func(msg maelstrom.Message) error {
 		// Unmarshal the message body as an loosely-typed map.
 		var body map[string]any
+
 		if err := json.Unmarshal(msg.Body, &body); err != nil {
 			return err
 		}
 
 		// Update the message type.
 		body["type"] = "topology_ok"
+		topologyData := body["topology"].(map[string]interface{})
+		os.Stderr.WriteString(fmt.Sprintf("%v", topologyData)+"\n")
+		os.Stderr.WriteString("\n" + n.ID() + fmt.Sprintf("%v", topologyData[n.ID()]) + "\n")
+		if neighbors, ok := topologyData[n.ID()]; ok {
+			// os.Stderr.WriteString("got inside if")
+			neighborsSlice := neighbors.([]interface{})
+			store = make([]string, len(neighborsSlice))
+
+			// Convert the neighbors to a string slice
+			for i, neighbor := range neighborsSlice {
+				store[i] = neighbor.(string)
+			}
+		}
+		os.Stderr.WriteString("Store here: " + fmt.Sprintf("%d", len(store)) + "\n")
+
 		delete(body, "topology")
-		// os.Stderr.WriteString("Counnt of ID" + n.ID())
 
 		// Echo the original message back with the updated message type.
 		return n.Reply(msg, body)
